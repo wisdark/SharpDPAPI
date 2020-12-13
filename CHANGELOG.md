@@ -5,6 +5,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [1.9.1] - 2020-11-05
+
+### Added
+* **SharpDPAPI** project
+    * Ability to triage masterkey targets (or folder of targets) manually
+
+### Added
+* **SharpChrome** project
+    * Added Chromium-based brave support
+    * Added `/quiet` flag for csv output
+
+### Fixed
+* **SharpChrome** project
+    * Filtering fixes for cookies
+
+
 ## [1.8.0] - 2020-07-13
 
 ### Added

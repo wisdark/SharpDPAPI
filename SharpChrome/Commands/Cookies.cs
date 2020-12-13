@@ -10,7 +10,6 @@ namespace SharpChrome.Commands
 
         public void Execute(Dictionary<string, string> arguments)
         {
-            Console.WriteLine("\r\n[*] Action: Chrome Cookies Triage\r\n");
             arguments.Remove("cookies");
 
             string displayFormat = "csv";   // "csv", "table", or "json" display
@@ -18,8 +17,27 @@ namespace SharpChrome.Commands
             bool showAll = false;           // whether to display entries with null passwords
             bool unprotect = false;         // whether to force CryptUnprotectData()
             bool setneverexpire = false;    // set cookie output expiration dates to now + 100 years
+            bool quiet = false;             // don't display headers/logos/etc. (for csv/json output)
             string cookieRegex = "";        // regex to search for specific cookie names
             string urlRegex = "";           // regex to search for specific URLs for cookies
+            string stateKey = "";           // decrypted AES statekey to use for cookie decryption
+            string browser = "chrome";      // alternate Chromiun browser to specify, currently only "edge" is supported
+
+
+            if (arguments.ContainsKey("/quiet"))
+            {
+                quiet = true;
+            }
+
+            if (arguments.ContainsKey("/browser"))
+            {
+                browser = arguments["/browser"].ToLower();
+            }
+
+            if (!quiet)
+            {
+                Console.WriteLine("\r\n[*] Action: {0} Saved Cookies Triage\r\n", SharpDPAPI.Helpers.Capitalize(browser));
+            }
 
             if (arguments.ContainsKey("/format"))
             {
@@ -51,19 +69,34 @@ namespace SharpChrome.Commands
                 showAll = true;
             }
 
-            if(showAll)
+            if (arguments.ContainsKey("/statekey"))
             {
-                Console.WriteLine("[*] Triaging all cookies, including expired ones.");
+                stateKey = arguments["/statekey"];
+                if (!quiet)
+                {
+                    Console.WriteLine("[*] Using AES State Key: {0}]\r\n", stateKey);
+                }
             }
-            else
+
+            if (!quiet)
             {
-                Console.WriteLine("[*] Triaging non-expired cookies. Use '/showall' to display ALL cookies.");
+                if (showAll)
+                {
+                    Console.WriteLine("[*] Triaging all cookies, including expired ones.");
+                }
+                else
+                {
+                    Console.WriteLine("[*] Triaging non-expired cookies. Use '/showall' to display ALL cookies.");
+                }
             }
 
             if (arguments.ContainsKey("/server"))
             {
                 server = arguments["/server"];
-                Console.WriteLine("[*] Triaging remote server: {0}\r\n", server);
+                if (!quiet)
+                {
+                    Console.WriteLine("[*] Triaging remote server: {0}\r\n", server);
+                }
             }
 
             // {GUID}:SHA1 keys are the only ones that don't start with /
@@ -87,7 +120,10 @@ namespace SharpChrome.Commands
             else if (arguments.ContainsKey("/password"))
             {
                 string password = arguments["/password"];
-                Console.WriteLine("[*] Will decrypt user masterkeys with password: {0}\r\n", password);
+                if (!quiet)
+                {
+                    Console.WriteLine("[*] Will decrypt user masterkeys with password: {0}\r\n", password);
+                }
                 if (arguments.ContainsKey("/server"))
                 {
                     masterkeys = SharpDPAPI.Triage.TriageUserMasterKeys(null, true, arguments["/server"], password);
@@ -101,11 +137,21 @@ namespace SharpChrome.Commands
             if (arguments.ContainsKey("/target"))
             {
                 string target = arguments["/target"].Trim('"').Trim('\'');
+                byte[] stateKeyBytes = null;
+
+                if (!String.IsNullOrEmpty(stateKey))
+                {
+                    stateKeyBytes = SharpDPAPI.Helpers.ConvertHexStringToByteArray(stateKey);
+                }
 
                 if (File.Exists(target))
                 {
-                    Console.WriteLine("[*] Target 'Cookies' File: {0}\r\n", target);
-                    Chrome.ParseChromeCookies(masterkeys, target, displayFormat, showAll, unprotect, cookieRegex, urlRegex);
+                    if (!quiet)
+                    {
+                        Console.WriteLine("[*] Target 'Cookies' File: {0}\r\n", target);
+                    }
+
+                    Chrome.ParseChromeCookies(masterkeys, target, displayFormat, showAll, unprotect, cookieRegex, urlRegex, setneverexpire, stateKeyBytes, quiet);
                 }
                 else
                 {
@@ -114,13 +160,14 @@ namespace SharpChrome.Commands
             }
             else
             {
-                if (arguments.ContainsKey("/server") && !arguments.ContainsKey("/pvk") && !arguments.ContainsKey("/password"))
+                if (arguments.ContainsKey("/server") && !arguments.ContainsKey("/pvk") && !arguments.ContainsKey("/password") && !quiet)
                 {
                     Console.WriteLine("[X] The '/server:X' argument must be used with '/pvk:BASE64...' or '/password:X' !");
                 }
                 else
                 {
-                    Chrome.TriageChromeCookies(masterkeys, server, displayFormat, showAll, unprotect, cookieRegex, urlRegex, setneverexpire);
+                    // last "true" -> indicates we want to triage Edge
+                    Chrome.TriageChromeCookies(masterkeys, server, displayFormat, showAll, unprotect, cookieRegex, urlRegex, setneverexpire, stateKey, browser, quiet);
                 }
             }
         }
