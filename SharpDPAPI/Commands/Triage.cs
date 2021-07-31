@@ -61,17 +61,21 @@ namespace SharpDPAPI.Commands
             {
                 Triage.TriageUserCreds(masterkeys, server);
                 Triage.TriageUserVaults(masterkeys, server);
-                // Triage.TriageUserCerts(masterkeys, server);
+                
                 Console.WriteLine();
                 if (masterkeys.Count == 0)
                 {
                     // try to use CryptUnprotectData if no GUID lookups supplied
                     Triage.TriageRDCMan(masterkeys, server, true);
+                    Triage.TriageKeePass(masterkeys, server, true);
                 }
                 else
                 {
                     Triage.TriageRDCMan(masterkeys, server, false);
+                    Triage.TriageKeePass(masterkeys, server, false);
                 }
+
+                Triage.TriageUserCerts(masterkeys, server, false);
             }
         }
     }

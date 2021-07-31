@@ -65,7 +65,7 @@
     <Compile Include="Commands\Certificate.cs" />
     <Compile Include="Commands\Credentials.cs" />
     <Compile Include="Commands\ICommand.cs" />
-    <Compile Include="Commands\MachineCertificates.cs" />
+    <Compile Include="Commands\Keepass.cs" />
     <Compile Include="Commands\Masterkeys.cs" />
     <Compile Include="Commands\Machinecredentials.cs" />
     <Compile Include="Commands\Machinemasterkeys.cs" />
@@ -83,6 +83,7 @@
     <Compile Include="Domain\Version.cs" />
     <Compile Include="lib\Backup.cs" />
     <Compile Include="lib\BigInteger.cs" />
+    <Compile Include="lib\Certificate.cs" />
     <Compile Include="lib\Crypto.cs" />
     <Compile Include="lib\Dpapi.cs" />
     <Compile Include="lib\Helpers.cs" />

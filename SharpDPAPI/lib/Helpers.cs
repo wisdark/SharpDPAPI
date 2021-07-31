@@ -38,6 +38,7 @@ namespace SharpDPAPI
                 }
             }
         }
+
         public static void EncodeIntegerBigEndian(BinaryWriter stream, byte[] value, bool forceUnsigned = true)
         {
             stream.Write((byte)0x02); // INTEGER
@@ -75,7 +76,6 @@ namespace SharpDPAPI
 
         public static byte[] TrimByte(byte[] input)
         {
-
             int byteCounter = input.Length - 1;
             while (input[byteCounter] == 0x00)
             {
@@ -172,6 +172,17 @@ namespace SharpDPAPI
             {
                 return "";
             }
+        }
+
+        public static byte[] PadToLength(byte[] input, int len = 64)
+        {
+            if (input.Length % len != 0)
+            {
+                byte[] pad = new byte[len - (input.Length % len)];
+                if (pad.Length > 0)
+                return Combine(pad, input);
+            }
+            return input;
         }
 
         public static byte[] Combine(byte[] first, byte[] second)
@@ -366,6 +377,26 @@ namespace SharpDPAPI
             return masterkeys;
         }
 
+
+        public static List<string> GetUserFolders()
+        {
+            string usersFolder = String.Format("{0}\\Users\\", Environment.GetEnvironmentVariable("SystemDrive"));
+            
+            List<string> userFolderPaths = new List<string>();
+
+            string[] dirs = Directory.GetDirectories(usersFolder);
+            
+            foreach (string dir in dirs)
+            {
+                if (!(dir.EndsWith("Public") || dir.EndsWith("Default") || dir.EndsWith("Default User") || dir.EndsWith("All Users")))
+                {
+                    userFolderPaths.Add(dir);
+                }
+            }
+
+            return userFolderPaths;
+        }
+
         public static bool GetSystem()
         {
             // helper to elevate to SYSTEM via token impersonation
@@ -553,7 +584,6 @@ namespace SharpDPAPI
                 hex.AppendFormat("{0:x2}", b);
             return hex.ToString();
         }
-
 
         public static bool Contains<T>(this T[] array, T[] candidate)
         {

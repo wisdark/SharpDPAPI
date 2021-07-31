@@ -5,6 +5,66 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [1.11.1] - 2021-03-05
+
+### Fixed
+* **SharpChrome** project
+    * Chrome statekey usage bug when triaging multiple users
+
+### Changed
+* **SharpChrome** project
+    * Default cookie/logins/statekeys triage behavior is now to triage the current user if elevated, unless pvk/password/masterkeys specified
+    * `/target:X` can now be a `C:\Users\USER\` folder for any specified triage
+    * Added Brave statekey triage to `statekeys`
+    * Cleaned up Chromium triage code
+* Removed out of date SharpDPAPI.cna aggressor script
+
+
+## [1.11.0] - 2021-03-01
+
+### Added
+* **SharpDPAPI** project
+    * Added `keepass` command - ProtectedUserKey.bin decryption
+    * Added `/entropy` flag to `blob` command
+
+### Fixed
+* **SharpDPAPI** project
+    * Decrypted null bytes in certificate description fields messing up output 
+
+
+## [1.10.0] - 2021-02-25
+
+### Added
+* **SharpDPAPI** project
+    * CNG private key decryption support \m/
+    * Additional CAPI/CNG cert search locations
+    * `/nowrap` flag to the `backupkey` command
+
+### Fixed
+* **SharpDPAPI** project
+    * Bug where some extracted key components ending in 00 caused error cases
+
+### Changed
+* **SharpDPAPI** project
+    * Only decrypted private keys with certs present displayed by default, the `/showall` flag for `certificates` will display all decrypted results
+    * Combined `machinecerts` into `certificates /machine`
+    * Corrected method for SHA1 MS hash computation fuckery with entropy (thanks @gentilkiwi)
+    * Re-added certificate triage to `triage` and `machinetriage`
+
+
+## [1.9.2] - 2021-01-04
+
+### Added
+* **SharpDPAPI** project
+    * /target option for machinecertificates
+    * more certificate information on extraction (including Enhanced Key Usages)
+
+### Fixed
+* **SharpDPAPI** project
+    * User certificate extraction corrected
+    * Few formatting issues
+
+
 ## [1.9.1] - 2020-11-05
 
 ### Added
