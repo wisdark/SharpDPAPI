@@ -49,6 +49,7 @@ SharpDPAPI is licensed under the BSD 3-Clause license.
       - [blob](#blob)
       - [backupkey](#backupkey)
       - [search](#search)
+      - [sccm](#sccm)
   - [SharpChrome Commands](#sharpchrome-commands)
     - [logins](#logins)
     - [cookies](#cookies)
@@ -221,6 +222,8 @@ Specific cookies/logins/statekey files can be specified with `/target:X`, and a 
 #### masterkeys
 
 The **masterkeys** command will search for any readable user masterkey files and decrypt them using a supplied domain DPAPI backup key. It will return a set of masterkey {GUID}:SHA1 mappings.
+
+`/password:X` can be used to decrypt a user's current masterkeys. If `/target` is also supplied with `/password`, the `/sid:X` full domain SID of the user also needs to be specified.
 
 The domain backup key can be in base64 form (`/pvk:BASE64...`) or file form (`/pvk:key.pvk`).
 
@@ -1222,7 +1225,7 @@ Retrieve the DPAPI backup key for the specified DC, outputting the backup key to
 
 
 #### search
-The **search** comand will search for potential DPAPI blobs in the registry, files, folders, and base64 blobs. Usage:
+The **search** command will search for potential DPAPI blobs in the registry, files, folders, and base64 blobs. Usage:
 ```
 SharpDPAPI.exe search /type:registry [/path:HKLM\path\to\key] [/showErrors]
 SharpDPAPI.exe search /type:folder /path:C:\path\to\folder [/maxBytes:<numOfBytes>] [/showErrors]
@@ -1243,6 +1246,8 @@ When searching a file or folder, specify a path with `/path:C:\Path\to\file\or\f
 
 When searching a base64 blob, specify the base64-encoded bytes to scan with the `/base64:<base64 str>` parameter.
 
+#### SCCM
+If elevated on a machine that is an SCCM client, if the SCCM environment is configured with a Network Access Account (NAA), the system master key-protected DPAPI blobs containing the NAA credentials can be retrieved via WMI; The **SCCM** command will query the blobs via WMI, retrieve the system master keys, and decrypt the blobs.
 
 ## SharpChrome Commands
 
@@ -1252,7 +1257,7 @@ The **logins** command will search for Chrome 'Login Data' files and decrypt the
 
 Login Data files can also be decrypted with a) any "{GUID}:SHA1 {GUID}:SHA1 ..." masterkeys passed, b) a `/mkfile:FILE` of one or more {GUID}:SHA1 masterkey mappings, c) a supplied DPAPI domain backup key (`/pvk:BASE64...` or `/pvk:key.pvk`) to first decrypt any user masterkeys, or d) a `/password:X` to decrypt any user masterkeys, which are then used as a lookup decryption table. DPAPI GUID mappings can be recovered with Mimikatz' `sekurlsa::dpapi` command.
 
-A specific Login Data file can be specified with `/target:FILE`. A remote `/server:SERVER` can be specified if a `/pvk` is also supplied. If triaging newer Chrome/Edge instances, a `/statekey:X` AES state key can be specified.
+A specific Login Data file can be specified with `/target:FILE`. A remote `/server:SERVER` can be specified if a `/pvk` or `/password` is also supplied. If triaging newer Chrome/Edge instances, a `/statekey:X` AES state key can be specified.
 
 By default, logins are displayed in a csv format. This can be modified with `/format:table` for table output. Also, by default only non-null password value entries are displayed, but all values can be displayed with `/showall`.
 
@@ -1264,7 +1269,7 @@ The **cookies** command will search for Chrome 'Cookies' files and decrypt cooki
 
 Cookie files can also be decrypted with a) any "{GUID}:SHA1 {GUID}:SHA1 ..." masterkeys passed, b) a `/mkfile:FILE` of one or more {GUID}:SHA1 masterkey mappings, c) a supplied DPAPI domain backup key (`/pvk:BASE64...` or `/pvk:key.pvk`) to first decrypt any user masterkeys, or d) a `/password:X` to decrypt any user masterkeys, which are then used as a lookup decryption table. DPAPI GUID mappings can be recovered with Mimikatz' `sekurlsa::dpapi` command.
 
-A specific Cookies file can be specified with `/target:FILE`. A remote `/server:SERVER` can be specified if a `/pvk` is also supplied. If triaging newer Chrome/Edge instances, a `/statekey:X` AES state key can be specified.
+A specific Cookies file can be specified with `/target:FILE`. A remote `/server:SERVER` can be specified if a `/pvk` or `/password` is also supplied. If triaging newer Chrome/Edge instances, a `/statekey:X` AES state key can be specified.
 
 By default, cookies are displayed in a csv format. This can be modified with `/format:table` for table output, or `/format:json` for output importable by [EditThisCookie](https://chrome.google.com/webstore/detail/editthiscookie/fngmhnnpilhplaeedifhccceomclgfbg?hl=en). Also, by default only non-expired cookie value entries are displayed, but all values can be displayed with `/showall`.
 
