@@ -14,9 +14,22 @@ namespace SharpDPAPI.Commands
             Console.WriteLine("\r\n[*] Action: Certificate Triage");
             arguments.Remove("certificates");
 
-            string server;              // used for remote server specification
+            string server = "";         // used for remote server specification
             bool cng = false;           // used for CNG certs
             bool showall = false;       // used for CNG certs
+            bool unprotect = false;     // whether to force CryptUnprotectData()
+
+            if (arguments.ContainsKey("/server"))
+            {
+                server = arguments["/server"];
+            }
+
+            if (arguments.ContainsKey("/unprotect"))
+            {
+                Console.WriteLine("\r\n[*] Using CryptUnprotectData() for decryption.");
+                unprotect = true;
+            }
+            Console.WriteLine();
 
             // {GUID}:SHA1 keys are the only ones that don't start with /
             Dictionary<string, string> masterkeys = new Dictionary<string, string>();
@@ -118,17 +131,25 @@ namespace SharpDPAPI.Commands
                 }
                 else if (arguments.ContainsKey("/password"))
                 {
-                    string password = arguments["/password"];
-                    Console.WriteLine("[*] Will decrypt user masterkeys with password: {0}\r\n", password);
-                    if (arguments.ContainsKey("/server"))
-                    {
-                        masterkeys = Triage.TriageUserMasterKeys(null, true, arguments["/server"], password);
-                    }
-                    else
-                    {
-                        masterkeys = Triage.TriageUserMasterKeys(null, true, "", password);
-                    }
+                    Console.WriteLine("[*] Will decrypt user masterkeys with password: {0}\r\n", arguments["/password"]);
+                    masterkeys = Triage.TriageUserMasterKeys(show: true, computerName: server, password: arguments["/password"]);
                 }
+                else if (arguments.ContainsKey("/ntlm"))
+                {
+                    Console.WriteLine("[*] Will decrypt user masterkeys with NTLM hash: {0}\r\n", arguments["/ntlm"]);
+                    masterkeys = Triage.TriageUserMasterKeys(show: true, computerName: server, ntlm: arguments["/ntlm"]);
+                }
+                else if (arguments.ContainsKey("/credkey"))
+                {
+                    Console.WriteLine("[*] Will decrypt user masterkeys with credkey: {0}\r\n", arguments["/credkey"]);
+                    masterkeys = Triage.TriageUserMasterKeys(show: true, computerName: server, credkey: arguments["/credkey"]);
+                }
+                else if (arguments.ContainsKey("/rpc"))
+                {
+                    Console.WriteLine("[*] Will ask a domain controller to decrypt masterkeys for us\r\n");
+                    masterkeys = Triage.TriageUserMasterKeys(show: true, rpc: true);
+                }
+
                 if (arguments.ContainsKey("/server"))
                 {
                     server = arguments["/server"];
@@ -143,12 +164,12 @@ namespace SharpDPAPI.Commands
                     if (File.Exists(target))
                     {
                         Console.WriteLine("[*] Target Certificate File: {0}\r\n", target);
-                        Triage.TriageCertFile(target, masterkeys, cng, showall);
+                        Triage.TriageCertFile(target, masterkeys, cng, showall, unprotect);
                     }
                     else if (Directory.Exists(target))
                     {
                         Console.WriteLine("[*] Target Certificate Folder: {0}\r\n", target);
-                        Triage.TriageCertFolder(target, masterkeys, cng, showall);
+                        Triage.TriageCertFolder(target, masterkeys, cng, showall, unprotect);
                     }
                     else
                     {
@@ -157,7 +178,7 @@ namespace SharpDPAPI.Commands
                 }
                 else
                 {
-                    Triage.TriageUserCerts(masterkeys, "", showall);
+                    Triage.TriageUserCerts(masterkeys, "", showall, unprotect);
                 }
             }
 

